@@ -1,30 +1,18 @@
-import os
+from deepface import DeepFace
 import cv2
-import pickle
-import numpy as np
-from os import listdir
-from numpy import expand_dims
+from keras_facenet import FaceNet
+from numpy import asarray, expand_dims
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
+import os
+import pickle
 from tkinter import *
 import csv
-from PIL import ImageTk, Image
 import shutil
 
-# Load DNN face detector (SSD with ResNet backbone)
-face_detector = cv2.dnn.readNetFromCaffe(
-    'deploy.prototxt.txt', 
-    'res10_300x300_ssd_iter_140000.caffemodel'
-)
-
-# Load pre-trained DNN model for face embedding (OpenFace or any other)
-face_recognizer = cv2.dnn.readNetFromTorch('C:\\Users\\ASUS\\Desktop\\jvw\\openface.nn4.small2.v1.t7')
-
-# Dataset path
-folder = 'dataset1/'
+MyFaceNet = FaceNet()
 database_file = "data.pkl"
 database = {}
 
-# Load or initialize the database
 def load_database():
     global database
     if os.path.exists(database_file):
@@ -36,117 +24,106 @@ def load_database():
         trainer('dataset1/')
     print("Database loaded from file.")
 
-# Save the database
+def trainer(folder):
+    for filename in os.listdir(f'C:\\Users\\ASUS\\Desktop\\jvw\\{folder}'):
+        for file in os.listdir(f'C:\\Users\\ASUS\\Desktop\\jvw\\{folder}//{filename}'):
+            img_path = f'C:\\Users\\ASUS\\Desktop\\jvw\\{folder}//{filename}//{file}'
+            img = cv2.imread(img_path)
+
+            # Use DeepFace RetinaFace for detection
+            faces = DeepFace.extract_faces(img, detector_backend='retinaface', enforce_detection=False)
+
+            if faces:
+                for face in faces:
+                    facial_area = face['facial_area']
+                    print(face['facial_area'])
+                    x = int(facial_area['x'])
+                    y = int(facial_area['y'])
+                    w = int(facial_area['w'])
+                    h = int(facial_area['h'])
+
+                    # Crop the face from the image
+                    face_img = img[y:y+h, x:x+w]
+                    face_img = cv2.resize(face_img, (160, 160))
+
+                    face_img = asarray(face_img)
+                    face_img = expand_dims(face_img, axis=0)
+
+                    signature = MyFaceNet.embeddings(face_img)
+                    database[os.path.splitext(filename)[0]] = signature
+
+    save_database()
+
 def save_database():
     with open(database_file, "wb") as myfile:
         pickle.dump(database, myfile)
 
-# Train the model on a ne
-def trainer(folder):
-    for filename in listdir(f'C:\\Users\\ASUS\\Desktop\\jvw\\{folder}'):
-        for file in listdir(f'C:\\Users\\ASUS\\Desktop\\jvw\\{folder}//{filename}'):
-            image_path = f'C:\\Users\\ASUS\\Desktop\\jvw\\{folder}//{filename}//{file}'
-            image = cv2.imread(image_path)
-            faces = detect_faces_dnn(image)
-
-            for face_data in faces:
-                (x1, y1, x2, y2) = face_data['box']
-                face = image[y1:y2, x1:x2]
-                face_embedding = get_face_embedding(face)
-                database[os.path.splitext(filename)[0]] = face_embedding
-
-    if folder == 'others/':
-        print("Model trained on the ne")
-        destination = 'C:\\Users\\ASUS\\Desktop\\jvw\\dataset1\\'
-        main = 'C:\\Users\\ASUS\\Desktop\\jvw\\others\\'
-        for folders in os.listdir(main):
-            shutil.move(f'{main}//{folders}', f'{destination}//{folders}')
-            print("Moved :", folders)
-    else:
-        print("Model trained on the bi")
-
-    save_database()
-
-# Detect faces using DNN
-def detect_faces_dnn(image):
-    (h, w) = image.shape[:2]
-    blob = cv2.dnn.blobFromImage(cv2.resize(image, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0))
-    face_detector.setInput(blob)
-    detections = face_detector.forward()
-
-    faces = []
-    for i in range(detections.shape[2]):
-        confidence = detections[0, 0, i, 2]
-        if confidence > 0.5:  # confidence threshold
-            box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-            (x1, y1, x2, y2) = box.astype("int")
-            faces.append({'box': (x1, y1, x2, y2)})
-
-    return faces
-
-# Get face embedding using DNN
-def get_face_embedding(face):
-    if face is None or face.size == 0:
-        raise ValueError("The face image is empty or not loaded correctly.")
-    
-    # Proceed with image processing
-    face_blob = cv2.dnn.blobFromImage(face, 1.0/255, (96, 96), (0, 0, 0), swapRB=True, crop=False)
-    face_recognizer.setInput(face_blob)
-    embedding = face_recognizer.forward()
-    return embedding
-    
-
 load_database()
-
-cap = cv2.VideoCapture(0)
+cap=cv2.VideoCapture(0)
 s = set()
 
 def video_capture():
     back = cv2.imread('C:\\Users\\ASUS\\Desktop\\jvw\\Group 1.png')
-    cv2.namedWindow('Video Feed')
+    
 
     while True:
-        _, frame = cap.read()
-        frame = cv2.resize(frame, (800, 500))
-        faces = detect_faces_dnn(frame)
-        if frame is None:
-            print("Failed to capture image from camera.")
-            break
+        vid = cv2.imread('C:\\Users\\ASUS\\Desktop\\jvw\\WhatsApp Image 2024-08-18 at 22.44.00_c51ec9e2.jpg')
+        # j,vid=cap.read()
+        vid = cv2.resize(vid, (800, 500))
 
-        for face_data in faces:
-            (x1, y1, x2, y2) = face_data['box']
-            face = frame[y1:y2, x1:x2]
-            face_embedding = get_face_embedding(face)
+        # Use DeepFace RetinaFace for detection
+        faces = DeepFace.extract_faces(vid, detector_backend='retinaface', enforce_detection=False)
 
-            max_similarity = -1  
-            min_euclidean_distance = float('inf')
-            identity = 'Unknown'
+        if faces:
+            for face in faces:
+                facial_area = face['facial_area']
+                print(face['facial_area'])
+                x = int(facial_area['x'])
+                y = int(facial_area['y'])
+                w = int(facial_area['w'])
+                h = int(facial_area['h'])
 
-            for key, value in database.items():
-                similarity = cosine_similarity(value, face_embedding)[0][0]
-                if similarity > max_similarity:
-                    max_similarity = similarity
-                    identity = key
+                # Crop the face from the image
+                face_img = vid[y:y+h, x:x+w]
+                if face_img.size == 0:
+                        print("Empty face image detected")
+                        continue
+                face_img = cv2.resize(face_img, (160, 160))
 
-                euclidean_distance = euclidean_distances(value, face_embedding)[0][0]
-                if euclidean_distance < min_euclidean_distance:
-                    min_euclidean_distance = euclidean_distance
-                    identity = key
+                face_img = asarray(face_img)
+                face_img = expand_dims(face_img, axis=0)
 
-            if max_similarity > 0.65 and min_euclidean_distance < 0.75:
-                print(f'Name: {identity}')
-                print(f'Cosine Similarity: {max_similarity}')
-                print(f'Euclidean Distance: {min_euclidean_distance}') 
-                cv2.putText(frame, identity, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2, cv2.LINE_AA)
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
-                s.add(identity)
-            else:
-                cv2.putText(frame, '.', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                signature = MyFaceNet.embeddings(face_img)
 
-        back[174:174 + 500, 121:121 + 800] = frame
+                max_similarity = -1
+                min_euclidean_distance = float('inf')
+                identity = 'Unknown'
+
+                for key, value in database.items():
+                    similarity = cosine_similarity(value, signature)[0][0]
+                    if similarity > max_similarity:
+                        max_similarity = similarity
+                        identity = key
+
+                    euclidean_distance = euclidean_distances(value, signature)[0][0]
+                    if euclidean_distance < min_euclidean_distance:
+                        min_euclidean_distance = euclidean_distance
+                        identity = key
+
+                if max_similarity > 0.8 and min_euclidean_distance < 0.8:
+                    print(f'name  {identity}')
+                    print(f'Cosine similarity  {max_similarity}')
+                    print(f'Euclidean distance  {min_euclidean_distance}')
+                    cv2.putText(vid, identity, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2, cv2.LINE_AA)
+                    cv2.rectangle(vid, (x, y), (w+x, h+y), (255, 0, 0), 2)
+                    s.add(identity)
+                else:
+                    cv2.putText(vid, '.', (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
+                    cv2.rectangle(vid, (x, y), (x+w,y+h), (0, 255, 0), 2)
+
+        back[174:174 + 500, 121:121 + 800] = vid
         cv2.imshow('Video Feed', back)
-        if cv2.waitKey(20) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     cap.release()
@@ -164,13 +141,13 @@ def save():
         writer = csv.writer(file)
         writer.writerow(["Name"])
         for name, var in selected_names.items():
-            if var.get() == 1:  
+            if var.get() == 1:
                 writer.writerow([name])
     print("Attendance saved.")
 
 def show_attendance():
     root.geometry('400x500')
-    root.title("Recognised Students")
+    root.title("Recognized Students")
 
     for i in s:
         var = IntVar()
